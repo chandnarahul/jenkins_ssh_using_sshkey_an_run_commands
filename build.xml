@@ -1,0 +1,90 @@
+<project>
+	<taskdef resource="net/sf/antcontrib/antlib.xml"/>
+	<property name="jboss.home" value="/home/server/server_base"></property>
+
+	<target name="app-house-keeping">
+		<if>
+			<equals arg1="${runDeployment}" arg2="EXECUTE_DEPLOY"/>
+			<then>
+			<antcall target="execute-house-keeping"/>
+		</then>
+		<else>
+			<antcall target="execution-complete-message">
+				<param name="execution.message" value="INVALID DEPLOYMENT EXECUTE COMMAND."/>
+			</antcall>
+		</else>
+	</if>
+	</target>
+
+
+	<target name="execute-house-keeping">
+		<propertyselector property="hostnames" match="server([^\.]*)\.hostname"/>
+
+		<for list="${hostnames}" param="hostname">
+			<sequential>
+				<var name="node" value="${@{hostname}}.domain.com"/>
+				<antcall target="stop"/>
+				<antcall target="cleanup"/>
+				<antcall target="start"/>
+			</sequential>
+		</for>
+		<for list="${hostnames}" param="hostname">
+			<sequential>
+				<var name="node" value="${@{hostname}}.domain.com"/>
+				<antcall target="check-server-is-up"/>
+			</sequential>
+		</for>
+
+		<antcall target="execution-complete-message">
+			<param name="execution.message" value="PROCESS COMPLETE."/>
+		</antcall>
+	</target>
+
+	<target name="check-server-is-up">
+		<retry retrycount="500" retrydelay="10000">
+			<get src="https://${node}:8443/health" dest="/dev/null"/>
+		</retry>
+	</target>
+
+	<target name="stop">
+		<retry retrycount="5" retrydelay="5000">
+			<sshexec host="${node}" username="server" keyfile="${user.home}/.ssh/id_rsa"  command=". .bash_profile; server stop;" trust="true" timeout="10000"/>
+		</retry>
+	</target>
+
+	<target name="cleanup">
+		<retry retrycount="5" retrydelay="5000">
+			<sshexec
+				host="${node}"
+				username="server" keyfile="${user.home}/.ssh/id_rsa"
+
+				command="rm -rf /Apps/server/backup/*;
+				rm -rf /home/server/server_base/data;
+				rm -rf /home/server/server_base/tmp;
+				rm -rf /home/server/server_base/log/*;"
+				trust="true"/>
+		</retry>
+	</target>
+
+	<target name="start">
+		<retry retrycount="5" retrydelay="5000">
+			<sshexec host="${node}" username="server" keyfile="${user.home}/.ssh/id_rsa"  command=". .bash_profile; server start;" trust="true"/>
+		</retry>
+	</target>
+
+	<target name="execution-complete-message">
+		<echo level="info" message="#################################"/>
+		<echo level="info" message="#################################"/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message="${execution.message}"/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message=""/>
+		<echo level="info" message="#################################"/>
+	</target>
+</project>
